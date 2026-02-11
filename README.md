@@ -9,6 +9,17 @@ This repository accompanies the arXiv paper:
 
 ---
 
+## 📁 Repository Structure 
+
+```
+├── Sample.md    # Sample of our dataset
+├── Experiment.md # Full experiment result 
+├── README.md
+└── LICENSE
+```
+
+---
+
 ## 📄 Citation
 
 If you use SciRerankBench in your research, please cite:
