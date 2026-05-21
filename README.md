@@ -30,16 +30,16 @@ SciRerankBench/
 │   └── metrics/
 │       ├── compute_metrics.py         # Compute all metrics with grouped std
 │       └── gen_tables.py              # Generate LaTeX tables
-├── requirements.txt                   # Deprecated — see env-specific files below
-├── requirements_rerank.txt            # BGE, Jina, MXBAI, MiniLM, ColBERT, T5, GTE
-├── requirements_rankify.txt           # RankT5, ListT5, SPLADE, TwoLAR, LLM2Vec, RankGPT
-├── requirements_bce.txt               # BCE reranker
-├── requirements_rearank.txt           # Rearank agent
+├── requirements/                      # Environment-specific dependencies
+│   ├── README.md                      # Environment setup guide
+│   ├── rerank.txt                     # BGE, Jina, MXBAI, MiniLM, ColBERT, T5, GTE
+│   ├── rankify.txt                    # RankT5, ListT5, SPLADE, TwoLAR, LLM2Vec, RankGPT
+│   ├── bce.txt                        # BCE reranker
+│   └── rearank.txt                    # Rearank agent
 ├── docs/
 │   ├── DATA.md                        # Dataset construction details
 │   ├── EVAL.md                        # Evaluation protocol
-│   ├── METRICS.md                     # Metric definitions
-│   └── ENVIRONMENTS.md                # Conda environment setup & model mapping
+│   └── METRICS.md                     # Metric definitions
 ```
 
 ## Dataset
@@ -82,24 +82,24 @@ Each JSONL file contains one entry per question with fields:
 
 ### Environment Setup
 
-Different reranker models require different conda environments due to conflicting dependencies. See [docs/ENVIRONMENTS.md](docs/ENVIRONMENTS.md) for the full mapping.
+Different reranker models require different conda environments due to conflicting dependencies. See [requirements/README.md](requirements/README.md) for the full mapping.
 
 ```bash
 # Primary env (BGE, Jina, MXBAI, MiniLM, ColBERT, T5, GTE)
 conda create -n rerank python=3.10 && conda activate rerank
-pip install -r requirements_rerank.txt
+pip install -r requirements/rerank.txt
 
 # Rankify-based models (RankT5, ListT5, SPLADE, TwoLAR, LLM2Vec, RankGPT)
 conda create -n rankify python=3.10 && conda activate rankify
-pip install -r requirements_rankify.txt
+pip install -r requirements/rankify.txt
 
 # BCE standalone
 conda create -n bce python=3.10 && conda activate bce
-pip install -r requirements_bce.txt
+pip install -r requirements/bce.txt
 
 # Rearank
 conda create -n rearank python=3.12 && conda activate rearank
-pip install -r requirements_rearank.txt
+pip install -r requirements/rearank.txt
 ```
 
 ### Run Evaluation

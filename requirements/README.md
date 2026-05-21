@@ -11,7 +11,7 @@ Supports: **BGE, Jina, BCE, MXBAI (cross-encoder), MiniLM (flashrank), ColBERT, 
 ```bash
 conda create -n rerank python=3.10
 conda activate rerank
-pip install -r requirements_rerank.txt
+pip install -r requirements/rerank.txt
 ```
 
 ### 2. `rankify` (Python 3.10) — Rankify-based models
@@ -21,7 +21,7 @@ Supports: **RankT5, ListT5, SPLADE, TwoLAR, LLM2Vec, RankGPT**
 ```bash
 conda create -n rankify python=3.10
 conda activate rankify
-pip install -r requirements_rankify.txt
+pip install -r requirements/rankify.txt
 ```
 
 ### 3. `bce` (Python 3.10) — BCE-specific environment
@@ -31,7 +31,7 @@ Supports: **BCE** (alternative to rerank env, uses newer BCEmbedding)
 ```bash
 conda create -n bce python=3.10
 conda activate bce
-pip install -r requirements_bce.txt
+pip install -r requirements/bce.txt
 ```
 
 ### 4. `rearank` (Python 3.12) — Rearank agent
@@ -41,7 +41,7 @@ Supports: **Rearank**
 ```bash
 conda create -n rearank python=3.12
 conda activate rearank
-pip install -r requirements_rearank.txt
+pip install -r requirements/rearank.txt
 ```
 
 ## Model → Environment Mapping
