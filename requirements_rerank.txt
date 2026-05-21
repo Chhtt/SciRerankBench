@@ -1,0 +1,13 @@
+# requirements_rerank.txt — For: BGE, Jina, MXBAI, MiniLM, ColBERT, T5, GTE
+# Conda env: rerank (Python 3.10)
+
+torch>=2.2.0
+transformers>=4.44.0
+sentence-transformers>=2.7.0
+FlagEmbedding>=1.3.0
+rerankers>=0.6.0
+flashrank>=0.3.0
+nltk>=3.8
+tqdm>=4.65.0
+openai>=1.0.0
+pyyaml>=6.0

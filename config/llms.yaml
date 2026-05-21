@@ -1,0 +1,44 @@
+# LLM configurations for SciRerankBench evaluation
+# Each entry specifies the model backend, path, and inference settings
+
+llms:
+  # Qwen series
+  Qwen-7B:
+    backend: vllm
+    path: Qwen/Qwen2.5-7B-Instruct
+    max_tokens: 512
+    temperature: 0.0
+  Qwen-14B:
+    backend: vllm
+    path: Qwen/Qwen2.5-14B-Instruct
+    max_tokens: 512
+    temperature: 0.0
+  Qwen-72B:
+    backend: vllm
+    path: Qwen/Qwen2.5-72B-Instruct
+    max_tokens: 512
+    temperature: 0.0
+
+  # Llama2 series
+  Llama2-7B:
+    backend: vllm
+    path: meta-llama/Llama-2-7b-chat-hf
+    max_tokens: 512
+    temperature: 0.0
+  Llama2-13B:
+    backend: vllm
+    path: meta-llama/Llama-2-13b-chat-hf
+    max_tokens: 512
+    temperature: 0.0
+  Llama2-70B:
+    backend: vllm
+    path: meta-llama/Llama-2-70b-chat-hf
+    max_tokens: 512
+    temperature: 0.0
+
+  # Mistral
+  Mistral-7B:
+    backend: vllm
+    path: mistralai/Mistral-7B-Instruct-v0.2
+    max_tokens: 512
+    temperature: 0.0

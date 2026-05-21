@@ -1,0 +1,11 @@
+# SciRerankBench - Deprecated
+#
+# This project requires multiple conda environments due to conflicting dependencies.
+# Use the environment-specific requirements files instead:
+#
+#   requirements_rerank.txt  — BGE, Jina, MXBAI, MiniLM, ColBERT, T5, GTE
+#   requirements_rankify.txt — RankT5, ListT5, SPLADE, TwoLAR, LLM2Vec, RankGPT
+#   requirements_bce.txt     — BCE reranker
+#   requirements_rearank.txt — Rearank agent
+#
+# See docs/ENVIRONMENTS.md for setup instructions.

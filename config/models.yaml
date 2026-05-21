@@ -1,0 +1,64 @@
+# Reranker model configurations for SciRerankBench
+# Each entry specifies the model type, HuggingFace path, and evaluation settings
+
+models:
+  # Dense cross-encoders
+  bge:
+    type: dense_cross_encoder
+    path: BAAI/bge-reranker-v2-m3
+    fp16: true
+  jina:
+    type: dense_cross_encoder
+    path: jinaai/jina-reranker-v2-base-multilingual
+    torch_dtype: auto
+    trust_remote_code: true
+  bce:
+    type: dense_cross_encoder
+    path: netease-youdao/bce-reranker-base_v1
+  mxbai:
+    type: dense_cross_encoder
+    path: mixedbread-ai/mxbai-rerank-base-v1
+
+  # Sparse lexical
+  splade:
+    type: sparse_lexical
+    path: naver/splade-cocondenser-selfdistil
+
+  # Lightweight (FlashRank)
+  minilm:
+    type: flashrank
+    path: flashrank
+
+  # Late-interaction
+  colbert:
+    type: late_interaction
+    path: colbert-v2.0
+
+  # LLM-based
+  rankgpt:
+    type: llm_based
+    llm_backend: gpt-4
+  llm2vec:
+    type: llm_based
+    path: Mcgill-NLP/LLM2Vec-Meta-Llama-3-8B-Instruct-mntp
+
+  # Seq2Seq / Listwise
+  rankt5:
+    type: seq2seq
+    path: castorini/rank-t5-flan
+  listt5:
+    type: seq2seq
+    path: waltyyz/ListT5-v1
+  t5:
+    type: seq2seq
+    path: t5-base
+
+  # Knowledge distillation
+  twolar:
+    type: distilled
+    path: BAAI/TwoLAR-base
+
+  # Agent-based
+  rearank:
+    type: agent_based
+    llm_backend: llama2-70b

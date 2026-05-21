@@ -1,0 +1,10 @@
+# requirements_bce.txt — For: BCE reranker (standalone env)
+# Conda env: bce (Python 3.10)
+
+torch>=2.0.0
+transformers>=4.57.0
+sentence-transformers>=5.5.0
+BCEmbedding>=0.1.1
+nltk>=3.8
+tqdm>=4.65.0
+pyyaml>=6.0
