@@ -43,21 +43,11 @@ TASK_DIR_MAP = {
 ONE_BASED_MODELS = {"rankt5", "listt5", "splade", "llm2vec", "rearank", "rankgpt", "twolar"}
 
 
-def grouped_std(scores):
-    """Compute mean and std by splitting scores into 3 groups."""
-    n = len(scores)
-    if n == 0:
-        return 0.0, 0.0
-    group_size = max(1, n // 3)
-    groups = [scores[i:i + group_size] for i in range(0, n, group_size)]
-    if len(groups) > 3:
-        groups = groups[:3]
-    group_means = [sum(g) / len(g) for g in groups if g]
-    if not group_means:
-        return 0.0, 0.0
-    mean = sum(group_means) / len(group_means)
-    std = (sum((x - mean) ** 2 for x in group_means) / len(group_means)) ** 0.5
-    return mean, std
+def mean_score(scores):
+    """Compute simple arithmetic mean."""
+    if not scores:
+        return 0.0
+    return sum(scores) / len(scores)
 
 
 def tokenize(text):
@@ -173,8 +163,8 @@ def print_table(scores, metric="Recall@10"):
             for task in tasks:
                 vals = scores.get(task, {}).get(subject, {}).get(reranker, {}).get(metric, [])
                 if vals:
-                    mean, std = grouped_std(vals)
-                    row.append(f"{mean:.2f} +/- {std:.2f}")
+                    mean = mean_score(vals)
+                    row.append(f"{mean:.2f}")
                 else:
                     row.append("--")
             print(f"  {row[0]:<10} {row[1]:<18} {row[2]:<18} {row[3]:<18} {row[4]:<18} {row[5]:<18}")
@@ -191,10 +181,9 @@ def save_results(scores, output_path):
                 result[task][subject][reranker] = {}
                 for metric_key in scores[task][subject][reranker]:
                     vals = scores[task][subject][reranker][metric_key]
-                    mean, std = grouped_std(vals)
+                    mean = mean_score(vals)
                     result[task][subject][reranker][metric_key] = {
                         "mean": round(mean, 4),
-                        "std": round(std, 4),
                         "n": len(vals),
                     }
     with open(output_path, "w") as f:

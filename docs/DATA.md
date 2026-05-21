@@ -67,4 +67,73 @@ See the paper's Section 3 for full details. Briefly:
 2. **Single-hop QA**: LMQG (t5-small-squad-qag) generates (answer, question) pairs from abstracts
 3. **Multi-hop QA**: Unsupervised-Multi-hop-QA generates bridging questions across two semantically linked abstracts
 4. **NC**: Dense retrieval top-5 + 95 random abstracts
-5. **CC/SSLI**: Mistral-7B-Instruct-v0.2 generates counterfactual/semantically-similar distractors
+5. **CC/SSLI**: LLM generates counterfactual/semantically-similar distractors via structured output
+
+## Context Construction Pipeline
+
+The full pipeline consists of 3 steps:
+
+```
+OpenAlex Abstracts  →  FAISS Index  →  Context Pools  →  Reranker Results
+ (Step 1)               (Step 1)        (Step 2)           (Step 3)
+```
+
+### Step 1: Build FAISS Vector Store
+
+```bash
+python scripts/data/01_build_vector_store.py --subject biology
+python scripts/data/01_build_vector_store.py --all
+```
+
+Encodes all abstracts with BGE-M3 embeddings and builds a local FAISS index (IndexFlatIP, cosine similarity). No external vector database required.
+
+**Output**: `dataset/index/{subject}/faiss.index` + `metadata.json`
+
+### Step 2: Build Context Pools
+
+```bash
+# Single task
+python scripts/data/02_build_context_pools.py --subject biology --task nc
+
+# CC/SSLI with LLM distractor generation
+python scripts/data/02_build_context_pools.py --subject biology --task cc \
+    --llm mistral --llm-base-url http://localhost:8000/v1 --llm-api-key YOUR_KEY
+
+# All tasks
+bash scripts/data/run_pipeline.sh --subject biology --tasks nc,base,cc,ssli,multihop \
+    --llm mistral --llm-base-url http://localhost:8000/v1
+```
+
+Context pool composition per task:
+
+| Task | Retrieval | Composition |
+|------|-----------|-------------|
+| NC | FAISS top-5 | 5 relevant + 95 random |
+| Base | FAISS top-100 | 100 relevant abstracts |
+| CC | FAISS top-90 | 90 relevant + 10 counterfactual (LLM) |
+| SSLI | FAISS top-90 | 90 relevant + 10 semantically similar but irrelevant (LLM) |
+| Multi-Hop | FAISS top-100 | 100 relevant abstracts |
+
+CC and SSLI distractors are generated via LangChain `with_structured_output` with Pydantic schema validation.
+
+**Output**: `dataset/pools/{task}/{subject}/pool.jsonl`
+
+### Step 3: Run Rerankers
+
+```bash
+# Single reranker
+python scripts/eval/eval_reranker.py --model bge --subject biology --task nc \
+    --llm Qwen-72B --gpu 0 --data_root ./dataset --pool_input
+
+# All rerankers via pipeline (auto-selects conda env per model)
+bash scripts/data/run_pipeline.sh --subject biology --task nc --rerankers bge,jina,bce
+
+# Full pipeline (all steps)
+bash scripts/data/run_pipeline.sh --subject biology
+```
+
+The `--pool_input` flag reads from `dataset/pools/` instead of pre-existing result files. Each reranker produces: `dataset/{task}/{subject}/rebuild_..._{Reranker}.jsonl`.
+
+### Environment Requirements
+
+Different rerankers require different conda environments. See `requirements/README.md` for the full setup.

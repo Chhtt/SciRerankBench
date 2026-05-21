@@ -78,12 +78,16 @@ def parse_args():
     parser.add_argument("--top_k_first", type=int, default=100)
     parser.add_argument("--top_k_second", type=int, default=10)
     parser.add_argument("--data_root", type=str, default="./dataset")
+    parser.add_argument("--pool_input", action="store_true",
+                        help="Read from dataset/pools/{task}/{subject}/pool.jsonl instead of pre-built files")
     parser.add_argument("--max_chunks", type=int, default=None, help="Limit chunks for testing")
     return parser.parse_args()
 
 
 def get_input_path(args):
-    """Get the input QA JSONL path from the dataset."""
+    """Get the input QA JSONL path from the dataset or pool directory."""
+    if args.pool_input:
+        return os.path.join(args.data_root, "pools", args.task, args.subject, "pool.jsonl")
     if args.task == "nc":
         return os.path.join(args.data_root, "nc", args.subject, f"rebuild_5-95_{args.top_k_first}-{args.top_k_second}_BCE.jsonl")
     elif args.task == "base":
@@ -260,14 +264,23 @@ def main():
     llm_model = load_llm(args.llm, device)
 
     output_path = get_output_path(args)
+    input_path = get_input_path(args)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    print(f"Input:  {input_path}")
+    print(f"Output: {output_path}")
+
+    if not os.path.exists(input_path):
+        print(f"[ERROR] Input file not found: {input_path}")
+        print(f"  Hint: Build context pools first with scripts/data/02_build_context_pools.py")
+        return
 
     count = 0
     errors = []
     start_time = time.time()
 
     with open(output_path, "w", encoding="utf-8") as fout:
-        for chunk_idx, chunk in enumerate(read_chunks(args.input_file, 100)):
+        for chunk_idx, chunk in enumerate(read_chunks(input_path, 100)):
             if args.max_chunks and chunk_idx >= args.max_chunks:
                 break
             print(f"Processing chunk {chunk_idx}")

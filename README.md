@@ -24,11 +24,16 @@ SciRerankBench/
 │   ├── qa_generation/
 │   │   ├── generate_single_hop.py     # LMQG-based single-hop QA generation
 │   │   └── generate_multi_hop.py      # Multi-hop QA generation pipeline
+│   ├── data/
+│   │   ├── 01_build_vector_store.py   # FAISS index from OpenAlex abstracts
+│   │   ├── 02_build_context_pools.py  # Build 100-passage context pools per task
+│   │   └── run_pipeline.sh            # Full pipeline orchestrator
 │   ├── eval/
 │   │   ├── eval_reranker.py           # Main evaluation script (reranker + LLM)
+│   │   ├── run_eval.sh                # Per-model env dispatch
 │   │   └── llm_model.py               # LLM model factory
 │   └── metrics/
-│       ├── compute_metrics.py         # Compute all metrics with grouped std
+│       ├── compute_metrics.py         # Compute per-question mean metrics
 │       └── gen_tables.py              # Generate LaTeX tables
 ├── requirements/                      # Environment-specific dependencies
 │   ├── README.md                      # Environment setup guide
@@ -37,9 +42,11 @@ SciRerankBench/
 │   ├── bce.txt                        # BCE reranker
 │   └── rearank.txt                    # Rearank agent
 ├── docs/
-│   ├── DATA.md                        # Dataset construction details
+│   ├── DATA.md                        # Dataset construction details + pipeline docs
 │   ├── EVAL.md                        # Evaluation protocol
 │   └── METRICS.md                     # Metric definitions
+└── .gitignore
+```
 ```
 
 ## Dataset
