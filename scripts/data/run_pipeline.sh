@@ -2,7 +2,7 @@
 # SciRerankBench - Data Construction Pipeline
 #
 # 3 steps:
-#   1. Build FAISS vector store from OpenAlex abstracts
+#   1. Build Qdrant vector store from OpenAlex abstracts
 #   2. Build context pools for each task type
 #   3. Run rerankers on each pool to produce final JSONL files
 #
@@ -10,6 +10,7 @@
 #   bash scripts/data/run_pipeline.sh --subject biology --tasks nc,base,cc,ssli,multihop
 #   bash scripts/data/run_pipeline.sh --all --tasks nc --rerankers bge,jina
 #   bash scripts/data/run_pipeline.sh --subject biology --task cc --llm mistral --llm-base-url http://localhost:8000/v1
+#   bash scripts/data/run_pipeline.sh --subject biology --qdrant-url http://your-qdrant:6333
 
 set -e
 
@@ -22,9 +23,10 @@ LLM_BASE_URL=""
 LLM_API_KEY=""
 GPU=0
 DATA_ROOT="./dataset"
-INDEX_DIR="./dataset/index"
 QA_DIR="./dataset/qa_generated"
 POOL_DIR="./dataset/pools"
+QDRANT_URL="http://localhost:6333"
+QDRANT_API_KEY=""
 ALL=false
 RERANKERS_ALL=true  # run all rerankers by default
 
@@ -41,6 +43,8 @@ while [[ $# -gt 0 ]]; do
         --llm-api-key) LLM_API_KEY="$2"; shift 2;;
         --gpu) GPU="$2"; shift 2;;
         --data_root) DATA_ROOT="$2"; shift 2;;
+        --qdrant-url) QDRANT_URL="$2"; shift 2;;
+        --qdrant-api-key) QDRANT_API_KEY="$2"; shift 2;;
         --skip-build-index) SKIP_INDEX=true; shift;;
         --skip-pools) SKIP_POOLS=true; shift;;
         --skip-reranker) SKIP_RERANKER=true; shift;;
@@ -69,14 +73,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 EVAL_SCRIPT="$SCRIPT_DIR/eval/eval_reranker.py"
 
-# ===================== Step 1: Build FAISS Index =====================
+# ===================== Step 1: Build Qdrant Index =====================
 if [ "${SKIP_INDEX}" != "true" ]; then
     echo "=========================================="
-    echo "Step 1: Building FAISS vector store"
+    echo "Step 1: Building Qdrant vector store"
     echo "=========================================="
     conda activate rerank
     for subj in "${SUBJECTS[@]}"; do
-        python "$SCRIPT_DIR/data/01_build_vector_store.py" --subject "$subj" --gpu "$GPU" --index_dir "$INDEX_DIR"
+        python "$SCRIPT_DIR/data/01_build_vector_store.py" --subject "$subj" --gpu "$GPU" \
+            --qdrant-url "$QDRANT_URL" \
+            ${QDRANT_API_KEY:+--qdrant-api-key "$QDRANT_API_KEY"}
     done
 else
     echo "Step 1: Skipped (--skip-build-index)"
@@ -90,13 +96,14 @@ if [ "${SKIP_POOLS}" != "true" ]; then
     conda activate rerank
     for subj in "${SUBJECTS[@]}"; do
         for task in "${TASKS[@]}"; do
-            extra_args=""
+            extra_args="--qdrant-url $QDRANT_URL"
+            ${QDRANT_API_KEY:+extra_args="$extra_args --qdrant-api-key $QDRANT_API_KEY"}
             if [[ "$task" == "cc" || "$task" == "ssli" ]]; then
-                extra_args="--llm $LLM --llm-base-url $LLM_BASE_URL --llm-api-key $LLM_API_KEY"
+                extra_args="$extra_args --llm $LLM --llm-base-url $LLM_BASE_URL --llm-api-key $LLM_API_KEY"
             fi
             python "$SCRIPT_DIR/data/02_build_context_pools.py" \
                 --subject "$subj" --task "$task" --gpu "$GPU" \
-                --index_dir "$INDEX_DIR" --qa_dir "$QA_DIR" --output_dir "$POOL_DIR" \
+                --qa_dir "$QA_DIR" --output_dir "$POOL_DIR" \
                 $extra_args
         done
     done

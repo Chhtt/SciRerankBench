@@ -2,17 +2,17 @@
 SciRerankBench - Build Context Pools
 
 For each QA pair, builds a pool of 100 candidate passages using dense retrieval
-(L1 FAISS index) and task-specific composition.
+(Qdrant index via LangChain) and task-specific composition.
 
 Tasks:
-  NC:     FAISS top-5 + 95 random abstracts
-  Base:   FAISS top-100
-  CC:     FAISS top-90 + 10 counterfactual distractors (LangChain structured output)
-  SSLI:   FAISS top-90 + 10 semantically-similar irrelevant distractors (LangChain)
-  Multi-Hop: FAISS top-100 for multi-hop questions
+  NC:     Qdrant top-5 + 95 random abstracts
+  Base:   Qdrant top-100
+  CC:     Qdrant top-90 + 10 counterfactual distractors (LangChain structured output)
+  SSLI:   Qdrant top-90 + 10 semantically-similar irrelevant distractors (LangChain)
+  Multi-Hop: Qdrant top-100 for multi-hop questions
 
 Input:
-  - dataset/index/{subject}/          (FAISS index + metadata)
+  - Qdrant collection: scirerank_{subject}
   - dataset/qa_generated/single_hop/  (LMQG output)
   - dataset/qa_generated/multi_hop/   (Multi-hop QA output)
 
@@ -23,6 +23,7 @@ Output:
 Usage:
     python scripts/data/02_build_context_pools.py --subject biology --task nc
     python scripts/data/02_build_context_pools.py --subject biology --task cc --llm mistral
+    python scripts/data/02_build_context_pools.py --subject biology --task nc --qdrant-url http://your-qdrant:6333
 """
 
 import argparse
@@ -31,8 +32,6 @@ import os
 import random
 from pathlib import Path
 
-import faiss
-import numpy as np
 from tqdm import tqdm
 
 TASK_CONTEXT_SIZE = 100
@@ -48,7 +47,10 @@ def parse_args():
                         choices=["biology", "chemistry", "geology", "physics", "math"])
     parser.add_argument("--task", type=str, required=True,
                         choices=["nc", "base", "cc", "ssli", "multihop"])
-    parser.add_argument("--index_dir", type=str, default="./dataset/index")
+    parser.add_argument("--qdrant_url", type=str, default="http://localhost:6333",
+                        help="Qdrant server URL")
+    parser.add_argument("--qdrant_api_key", type=str, default=None,
+                        help="Qdrant API key (for cloud deployments)")
     parser.add_argument("--qa_dir", type=str, default="./dataset/qa_generated")
     parser.add_argument("--output_dir", type=str, default="./dataset/pools")
     parser.add_argument("--llm", type=str, default="mistral",
@@ -58,34 +60,38 @@ def parse_args():
     parser.add_argument("--llm_api_key", type=str, default="",
                         help="API key for LLM")
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--pool_size", type=int, default=None,
+                        help="Override context pool size (default 100)")
     return parser.parse_args()
 
 
-# ===================== FAISS Retrieval =====================
+# ===================== Qdrant Retrieval via LangChain =====================
 
 
-def load_index(subject, index_dir):
-    """Load FAISS index and metadata for a subject."""
-    idx_path = os.path.join(index_dir, subject, "faiss.index")
-    meta_path = os.path.join(index_dir, subject, "metadata.json")
-    index = faiss.read_index(idx_path)
-    with open(meta_path) as f:
-        metadata = json.load(f)
-    return index, metadata
+def get_vector_store(url, api_key, collection_name, embedding_model, device):
+    """Get a Qdrant vector store via LangChain."""
+    from langchain_qdrant import QdrantVectorStore
+    from langchain_huggingface import HuggingFaceEmbeddings
+
+    embeddings = HuggingFaceEmbeddings(
+        model_name=embedding_model,
+        model_kwargs={"device": device},
+        encode_kwargs={"normalize_embeddings": True},
+    )
+
+    vector_store = QdrantVectorStore(
+        url=url,
+        api_key=api_key,
+        collection_name=collection_name,
+        embedding=embeddings,
+    )
+    return vector_store, embeddings
 
 
-def search_faiss(index, query_embedding, top_k):
-    """Search FAISS index for top-k similar abstracts. Returns list of abstract texts."""
-    scores, indices = index.search(query_embedding.reshape(1, -1), top_k)
-    return indices[0].tolist(), scores[0].tolist()
-
-
-def encode_query(query, model_name, device):
-    """Encode a single query string."""
-    from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer(model_name, device=device)
-    emb = model.encode([query], normalize_embeddings=True, convert_to_numpy=True)
-    return emb[0]
+def search_vectorstore(vector_store, query_text, top_k):
+    """Search vector store for top-k similar abstracts. Returns list of Document objects."""
+    results = vector_store.similarity_search_with_score(query_text, k=top_k)
+    return results
 
 
 # ===================== Distractor Generation (CC / SSLI) =====================
@@ -175,13 +181,13 @@ Generate {count} distractor passages. Each should be 2-4 sentences."""
 # ===================== Pool Building =====================
 
 
-def build_pool_for_question(index, metadata, query_emb, question, golden_answer, task_type, args, all_abstracts):
-    """Build a 100-context pool for one question."""
+def build_pool_for_question(vector_store, query_text, question, golden_answer, task_type, args, all_abstracts):
+    """Build a context pool for one question."""
+    pool_size = args.pool_size or TASK_CONTEXT_SIZE
+
     if task_type == "nc":
-        indices, _ = search_faiss(index, query_emb, NC_RELEVANT)
-        relevant = [metadata[i]["abstract"] for i in indices if i < len(metadata)]
-        # Fill remaining with random
-        pool_size = TASK_CONTEXT_SIZE
+        results = search_vectorstore(vector_store, query_text, NC_RELEVANT)
+        relevant = [doc.page_content for doc, _ in results]
         remaining = pool_size - len(relevant)
         if remaining > 0:
             random_abstracts = random.sample(
@@ -191,46 +197,45 @@ def build_pool_for_question(index, metadata, query_emb, question, golden_answer,
             pool = relevant + random_abstracts
         else:
             pool = relevant[:pool_size]
-        # Pad if still short
         while len(pool) < pool_size:
             pool.append(random.choice(all_abstracts))
         return pool[:pool_size]
 
     elif task_type == "base":
-        indices, _ = search_faiss(index, query_emb, BASE_RELEVANT)
-        pool = [metadata[i]["abstract"] for i in indices if i < len(metadata)]
-        while len(pool) < TASK_CONTEXT_SIZE:
+        results = search_vectorstore(vector_store, query_text, BASE_RELEVANT)
+        pool = [doc.page_content for doc, _ in results]
+        while len(pool) < pool_size:
             pool.append(random.choice(all_abstracts))
-        return pool[:TASK_CONTEXT_SIZE]
+        return pool[:pool_size]
 
     elif task_type == "cc":
-        indices, _ = search_faiss(index, query_emb, CC_RELEVANT)
-        retrieved = [metadata[i]["abstract"] for i in indices if i < len(metadata)]
+        results = search_vectorstore(vector_store, query_text, CC_RELEVANT)
+        retrieved = [doc.page_content for doc, _ in results]
         distractors = generate_counterfactual_distractors(
-            question, golden_answer, retrieved, args, count=TASK_CONTEXT_SIZE - len(retrieved)
+            question, golden_answer, retrieved, args, count=pool_size - len(retrieved)
         )
         pool = retrieved + distractors
-        while len(pool) < TASK_CONTEXT_SIZE:
+        while len(pool) < pool_size:
             pool.append(random.choice(all_abstracts))
-        return pool[:TASK_CONTEXT_SIZE]
+        return pool[:pool_size]
 
     elif task_type == "ssli":
-        indices, _ = search_faiss(index, query_emb, SSLI_RELEVANT)
-        retrieved = [metadata[i]["abstract"] for i in indices if i < len(metadata)]
+        results = search_vectorstore(vector_store, query_text, SSLI_RELEVANT)
+        retrieved = [doc.page_content for doc, _ in results]
         distractors = generate_ssli_distractors(
-            question, golden_answer, retrieved, args, count=TASK_CONTEXT_SIZE - len(retrieved)
+            question, golden_answer, retrieved, args, count=pool_size - len(retrieved)
         )
         pool = retrieved + distractors
-        while len(pool) < TASK_CONTEXT_SIZE:
+        while len(pool) < pool_size:
             pool.append(random.choice(all_abstracts))
-        return pool[:TASK_CONTEXT_SIZE]
+        return pool[:pool_size]
 
     elif task_type == "multihop":
-        indices, _ = search_faiss(index, query_emb, TASK_CONTEXT_SIZE)
-        pool = [metadata[i]["abstract"] for i in indices if i < len(metadata)]
-        while len(pool) < TASK_CONTEXT_SIZE:
+        results = search_vectorstore(vector_store, query_text, pool_size)
+        pool = [doc.page_content for doc, _ in results]
+        while len(pool) < pool_size:
             pool.append(random.choice(all_abstracts))
-        return pool[:TASK_CONTEXT_SIZE]
+        return pool[:pool_size]
 
 
 def load_single_hop_qa(subject, qa_dir):
@@ -277,14 +282,48 @@ def load_multi_hop_qa(subject, qa_dir):
     return questions
 
 
+def fetch_all_abstracts(vector_store):
+    """Fetch all abstracts from the Qdrant collection for random sampling."""
+    from qdrant_client import QdrantClient
+    abstracts = []
+    client = QdrantClient(url=vector_store._client.url)
+    offset = None
+    limit = 1000
+    while True:
+        batch = client.scroll(
+            collection_name=vector_store.collection_name,
+            limit=limit,
+            offset=offset,
+            with_payload=True,
+            with_vectors=False,
+        )
+        points, next_offset = batch
+        for point in points:
+            abstracts.append(point.payload.get("page_content", ""))
+        if next_offset is None:
+            break
+        offset = next_offset
+    return abstracts
+
+
 def main():
     args = parse_args()
     random.seed(42)
 
-    # Load FAISS index
-    index, metadata = load_index(args.subject, args.index_dir)
-    print(f"Loaded FAISS index for {args.subject}: {index.ntotal} vectors")
-    all_abstracts = [m["abstract"] for m in metadata]
+    collection_name = f"scirerank_{args.subject}"
+    device = f"cuda:{args.gpu}"
+
+    # Initialize vector store
+    print(f"Connecting to Qdrant collection: {collection_name}")
+    vector_store, _ = get_vector_store(
+        args.qdrant_url, args.qdrant_api_key, collection_name,
+        "BAAI/bge-m3", device
+    )
+
+    # Fetch all abstracts for random sampling
+    print("Fetching all abstracts for random sampling...")
+    all_abstracts = fetch_all_abstracts(vector_store)
+    print(f"Fetched {len(all_abstracts)} abstracts")
 
     # Load QA pairs
     if args.task == "multihop":
@@ -302,9 +341,6 @@ def main():
         print(f"Loaded LLM client: {args.llm}")
 
     # Build pools
-    from sentence_transformers import SentenceTransformer
-    enc_model = SentenceTransformer("BAAI/bge-m3", device=f"cuda:{args.gpu}")
-
     output_path = os.path.join(args.output_dir, args.task, args.subject, "pool.jsonl")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
@@ -316,13 +352,8 @@ def main():
             if not question or not golden_answer:
                 continue
 
-            # Encode query
-            query_emb = enc_model.encode(
-                [question], normalize_embeddings=True, convert_to_numpy=True
-            )[0]
-
             pool = build_pool_for_question(
-                index, metadata, query_emb, question, golden_answer,
+                vector_store, question, question, golden_answer,
                 args.task, args, all_abstracts
             )
 

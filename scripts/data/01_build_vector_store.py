@@ -1,24 +1,21 @@
 """
-SciRerankBench - Build FAISS Vector Store
+SciRerankBench - Build Qdrant Vector Store
 
-Indexes OpenAlex abstracts with BGE-M3 embeddings for dense retrieval.
-Replaces the original Qdrant-based pipeline with a local FAISS index.
+Indexes OpenAlex abstracts with BGE-M3 embeddings and stores them in a Qdrant
+collection using LangChain for dense retrieval.
 
 Input:  dataset/source/2024_{subject}_papers.jsonl
-Output: dataset/index/{subject}/faiss.index + metadata.json
+Output: Qdrant collection (default URL: http://localhost:6333)
 
 Usage:
     python scripts/data/01_build_vector_store.py --subject biology
     python scripts/data/01_build_vector_store.py --all
+    python scripts/data/01_build_vector_store.py --all --qdrant-url http://your-qdrant:6333
 """
 
 import argparse
 import json
 import os
-
-import faiss
-import numpy as np
-from tqdm import tqdm
 
 
 def parse_args():
@@ -27,7 +24,10 @@ def parse_args():
                         choices=["biology", "chemistry", "geology", "physics", "math", None])
     parser.add_argument("--all", action="store_true", help="Build for all subjects")
     parser.add_argument("--source_dir", type=str, default="./dataset/source")
-    parser.add_argument("--index_dir", type=str, default="./dataset/index")
+    parser.add_argument("--qdrant-url", type=str, default="http://localhost:6333",
+                        help="Qdrant server URL")
+    parser.add_argument("--qdrant-api-key", type=str, default=None,
+                        help="Qdrant API key (for cloud deployments)")
     parser.add_argument("--embedding_model", type=str, default="BAAI/bge-m3")
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--gpu", type=int, default=0)
@@ -52,38 +52,23 @@ def load_abstracts(source_path):
     return abstracts, metadata
 
 
-def encode_abstracts(abstracts, model_name, batch_size, device):
-    """Encode abstracts using BGE-M3 via sentence-transformers."""
-    from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer(model_name, device=device)
-    embeddings = model.encode(
-        abstracts,
-        batch_size=batch_size,
-        show_progress_bar=True,
-        normalize_embeddings=True,
-        convert_to_numpy=True,
-    )
-    return embeddings
-
-
-def build_index(embeddings):
-    """Build FAISS IndexFlatIP (inner product, for normalized vectors = cosine)."""
-    dim = embeddings.shape[1]
-    index = faiss.IndexFlatIP(dim)
-    index.add(embeddings.astype(np.float32))
-    return index
-
-
 def build_subject(subject, args):
-    """Build FAISS index for one subject."""
+    """Build Qdrant collection for one subject using LangChain."""
+    from sentence_transformers import SentenceTransformer
+    from langchain_qdrant import QdrantVectorStore
+    from langchain_core.documents import Document
+
     source_path = os.path.join(args.source_dir, f"2024_{subject}_papers.jsonl")
     if not os.path.exists(source_path):
         print(f"[SKIP] Source not found: {source_path}")
         return
 
+    collection_name = f"scirerank_{subject}"
+
     print(f"\n{'=' * 60}")
-    print(f"Building index for: {subject}")
+    print(f"Building Qdrant collection for: {subject}")
     print(f"Source: {source_path}")
+    print(f"Qdrant URL: {args.qdrant_url}")
 
     abstracts, metadata = load_abstracts(source_path)
     print(f"Loaded {len(abstracts)} valid abstracts")
@@ -92,22 +77,39 @@ def build_subject(subject, args):
         print("[SKIP] No valid abstracts")
         return
 
+    # Build LangChain Documents
+    docs = [
+        Document(page_content=abstract, metadata={"title": meta["title"]})
+        for abstract, meta in zip(abstracts, metadata)
+    ]
+
+    # Load embedding model
     device = f"cuda:{args.gpu}"
-    embeddings = encode_abstracts(abstracts, args.embedding_model, args.batch_size, device)
-    print(f"Embedding shape: {embeddings.shape}")
+    print(f"Loading embedding model: {args.embedding_model} on {device}")
+    from langchain_huggingface import HuggingFaceEmbeddings
+    embeddings = HuggingFaceEmbeddings(
+        model_name=args.embedding_model,
+        model_kwargs={"device": device},
+        encode_kwargs={"normalize_embeddings": True},
+    )
 
-    index = build_index(embeddings)
-    print(f"FAISS index built: {index.ntotal} vectors, dim={index.d}")
+    # Test embed to get dimension
+    test_emb = embeddings.embed_query("test")
+    dim = len(test_emb)
+    print(f"Embedding dimension: {dim}")
 
-    # Save
-    out_dir = os.path.join(args.index_dir, subject)
-    os.makedirs(out_dir, exist_ok=True)
-    faiss.write_index(index, os.path.join(out_dir, "faiss.index"))
+    # Create Qdrant vector store (auto-creates collection)
+    vector_store = QdrantVectorStore.from_documents(
+        documents=docs,
+        embedding=embeddings,
+        url=args.qdrant_url,
+        api_key=args.qdrant_api_key,
+        collection_name=collection_name,
+        batch_size=args.batch_size,
+        force_recreate=True,  # recreate collection if exists
+    )
 
-    with open(os.path.join(out_dir, "metadata.json"), "w") as f:
-        json.dump(metadata, f)
-
-    print(f"Saved to {out_dir}/ (faiss.index + metadata.json)")
+    print(f"Indexed {len(abstracts)} vectors into Qdrant collection '{collection_name}'")
 
 
 def main():

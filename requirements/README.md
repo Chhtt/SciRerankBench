@@ -11,7 +11,7 @@ Supports: **BGE, Jina, BCE, MXBAI (cross-encoder), MiniLM (flashrank), ColBERT, 
 ```bash
 conda create -n rerank python=3.10
 conda activate rerank
-pip install -r requirements/rerank.txt
+pip install -r requirements/requirements_rerank.txt
 ```
 
 ### 2. `rankify` (Python 3.10) — Rankify-based models

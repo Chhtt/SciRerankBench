@@ -74,20 +74,22 @@ See the paper's Section 3 for full details. Briefly:
 The full pipeline consists of 3 steps:
 
 ```
-OpenAlex Abstracts  →  FAISS Index  →  Context Pools  →  Reranker Results
- (Step 1)               (Step 1)        (Step 2)           (Step 3)
+OpenAlex Abstracts  →  Qdrant Index  →  Context Pools  →  Reranker Results
+ (Step 1)               (Step 1)         (Step 2)           (Step 3)
 ```
 
-### Step 1: Build FAISS Vector Store
+### Step 1: Build Qdrant Vector Store
 
 ```bash
 python scripts/data/01_build_vector_store.py --subject biology
 python scripts/data/01_build_vector_store.py --all
+# Custom Qdrant URL
+python scripts/data/01_build_vector_store.py --all --qdrant-url http://your-qdrant:6333
 ```
 
-Encodes all abstracts with BGE-M3 embeddings and builds a local FAISS index (IndexFlatIP, cosine similarity). No external vector database required.
+Encodes all abstracts with BGE-M3 embeddings and stores them in a Qdrant collection (`scirerank_{subject}`).
 
-**Output**: `dataset/index/{subject}/faiss.index` + `metadata.json`
+**Output**: Qdrant collections `scirerank_biology`, `scirerank_chemistry`, etc.
 
 ### Step 2: Build Context Pools
 
@@ -108,11 +110,11 @@ Context pool composition per task:
 
 | Task | Retrieval | Composition |
 |------|-----------|-------------|
-| NC | FAISS top-5 | 5 relevant + 95 random |
-| Base | FAISS top-100 | 100 relevant abstracts |
-| CC | FAISS top-90 | 90 relevant + 10 counterfactual (LLM) |
-| SSLI | FAISS top-90 | 90 relevant + 10 semantically similar but irrelevant (LLM) |
-| Multi-Hop | FAISS top-100 | 100 relevant abstracts |
+| NC | Qdrant top-5 | 5 relevant + 95 random |
+| Base | Qdrant top-100 | 100 relevant abstracts |
+| CC | Qdrant top-90 | 90 relevant + 10 counterfactual (LLM) |
+| SSLI | Qdrant top-90 | 90 relevant + 10 semantically similar but irrelevant (LLM) |
+| Multi-Hop | Qdrant top-100 | 100 relevant abstracts |
 
 CC and SSLI distractors are generated via LangChain `with_structured_output` with Pydantic schema validation.
 

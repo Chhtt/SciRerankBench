@@ -25,7 +25,7 @@ SciRerankBench/
 │   │   ├── generate_single_hop.py     # LMQG-based single-hop QA generation
 │   │   └── generate_multi_hop.py      # Multi-hop QA generation pipeline
 │   ├── data/
-│   │   ├── 01_build_vector_store.py   # FAISS index from OpenAlex abstracts
+│   │   ├── 01_build_vector_store.py   # Qdrant index from OpenAlex abstracts
 │   │   ├── 02_build_context_pools.py  # Build 100-passage context pools per task
 │   │   └── run_pipeline.sh            # Full pipeline orchestrator
 │   ├── eval/
