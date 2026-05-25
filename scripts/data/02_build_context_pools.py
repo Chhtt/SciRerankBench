@@ -282,16 +282,15 @@ def load_multi_hop_qa(subject, qa_dir):
     return questions
 
 
-def fetch_all_abstracts(vector_store):
+def fetch_all_abstracts(url, collection_name):
     """Fetch all abstracts from the Qdrant collection for random sampling."""
     from qdrant_client import QdrantClient
-    abstracts = []
-    client = QdrantClient(url=vector_store._client.url)
+    client = QdrantClient(url=url)
     offset = None
     limit = 1000
     while True:
         batch = client.scroll(
-            collection_name=vector_store.collection_name,
+            collection_name=collection_name,
             limit=limit,
             offset=offset,
             with_payload=True,
@@ -322,7 +321,7 @@ def main():
 
     # Fetch all abstracts for random sampling
     print("Fetching all abstracts for random sampling...")
-    all_abstracts = fetch_all_abstracts(vector_store)
+    all_abstracts = fetch_all_abstracts(args.qdrant_url, collection_name)
     print(f"Fetched {len(all_abstracts)} abstracts")
 
     # Load QA pairs

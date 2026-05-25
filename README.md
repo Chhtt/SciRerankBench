@@ -94,19 +94,19 @@ Different reranker models require different conda environments due to conflictin
 ```bash
 # Primary env (BGE, Jina, MXBAI, MiniLM, ColBERT, T5, GTE)
 conda create -n rerank python=3.10 && conda activate rerank
-pip install -r requirements/rerank.txt
+pip install -r requirements/requirements_rerank.txt
 
 # Rankify-based models (RankT5, ListT5, SPLADE, TwoLAR, LLM2Vec, RankGPT)
 conda create -n rankify python=3.10 && conda activate rankify
-pip install -r requirements/rankify.txt
+pip install -r requirements/requirements_rankify.txt
 
 # BCE standalone
 conda create -n bce python=3.10 && conda activate bce
-pip install -r requirements/bce.txt
+pip install -r requirements/requirements_bce.txt
 
 # Rearank
 conda create -n rearank python=3.12 && conda activate rearank
-pip install -r requirements/rearank.txt
+pip install -r requirements/requirements_rearank.txt
 ```
 
 ### Run Evaluation
