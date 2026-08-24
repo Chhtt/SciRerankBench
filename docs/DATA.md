@@ -2,7 +2,18 @@
 
 ## Overview
 
-SciRerankBench contains **~4,500 question-answer-context (Q-A-C) triples** across **5 scientific subjects** and **5 task types**. Each Q-A-C triple consists of a scientific question, its golden answer(s), and a pool of 100 candidate passages.
+> **Download:** The dataset is hosted externally at **[DATA_URL]** (coming soon).
+>
+> | Property | Value |
+> |----------|-------|
+> | **Size** | ~5.7 GB (25 JSONL files) |
+> | **Q-A-C triples** | ~58,000 total (across all tasks and subjects) |
+> | **Subjects** | Biology, Chemistry, Geology, Physics, Math |
+> | **Tasks** | Base, NC, CC, SSLI, Multi-Hop |
+> | **Source** | OpenAlex scholarly database, filtered to 5 subjects |
+> | **License** | [TBD] |
+
+SciRerankBench contains **~4,500 question-answer-context (Q-A-C) triples per subject** across **5 scientific subjects** and **5 task types**. Each Q-A-C triple consists of a scientific question, its golden answer(s), and a pool of 100 candidate passages.
 
 ## Task Types
 
@@ -51,13 +62,14 @@ Files follow the pattern: `rebuild_{config}_{topK_first}-{topK_second}_{Reranker
 
 ## Statistics
 
-| Subject | NC | Base | CC | SSLI | Multi-Hop |
-|---------|----|----|----|----|----|
-| Biology | 2,499 | 2,499 | 2,496 | 2,497 | 1,246 |
-| Math | 2,494 | 2,494 | 2,491 | 2,493 | 1,631 |
-| Physics | 2,491 | 2,491 | 2,494 | 2,492 | 1,425 |
-| Geology | 2,493 | 2,493 | 2,493 | 2,496 | 1,598 |
-| Chemistry | ~2,490 | ~2,490 | ~2,490 | ~2,490 | ~1,500 |
+| Subject | NC | Base | CC | SSLI | Multi-Hop | **Total** |
+|---------|------|------|------|------|-----------|----------|
+| Biology | 2,499 | 2,499 | 2,496 | 2,497 | 1,246 | **11,237** |
+| Chemistry | 2,499 | 2,499 | 2,497 | 2,498 | 1,087 | **11,080** |
+| Geology | 2,493 | 2,493 | 2,493 | 2,496 | 1,598 | **11,573** |
+| Math | 2,494 | 2,494 | 2,491 | 2,493 | 1,631 | **11,603** |
+| Physics | 2,491 | 2,491 | 2,494 | 2,492 | 1,425 | **11,393** |
+| **Total** | **12,476** | **12,476** | **12,471** | **12,476** | **6,987** | **56,886** |
 
 ## Data Construction
 
