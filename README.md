@@ -1,6 +1,10 @@
 # SciRerankBench
 
-Anonymous release of **SciRerankBench**: a benchmark for evaluating rerankers within Retrieval-Augmented Generation (RAG) systems in the scientific domain.
+> **SciRerankBench: Benchmarking Rerankers Towards Scientific Retrieval-Augmented Generated LLMs**
+>
+> Accepted at EMNLP 2026. The first benchmark specifically designed to evaluate rerankers in RAG-LLM systems across 5 scientific subjects.
+
+A benchmark for evaluating rerankers within Retrieval-Augmented Generation (RAG) systems in the scientific domain.
 
 ## Project Structure
 
@@ -43,7 +47,7 @@ SciRerankBench/
 │   └── METRICS.md                     # Metric definitions
 └── .gitignore
 ```
-```
+
 
 ## Dataset
 
