@@ -70,28 +70,9 @@ SciRerankBench/
 
 > **Download:** The dataset is hosted externally at **[DATA_URL]** (coming soon).
 >
-> **Size:** ~5.7 GB, 25 JSONL files, ~58,000 Q-A-C (Question-Answer-Context) triples.
+> **Size:** ~5.7 GB, 25 JSONL files, ~58,000 Q-A-C triples across 5 subjects and 5 tasks.
 >
-> **Format:** Each file is JSONL with fields `QUESTION`, `ALL_CONTEXTS` (100 passages), `SELECTED_CONTEXTS_INDICES` (top-10 by reranker), `GOLDEN_ANSWERS`, and `MODEL_RESULTS`. See [docs/DATA.md](docs/DATA.md) for details.
-
-SciRerankBench covers **5 scientific subjects** (Biology, Chemistry, Geology, Physics, Math) with **5 task types**:
-
-| Task | Directory | Description | Context Composition | Per-Subject |
-|------|-----------|-------------|---------------------|-------------|
-| NC | `{base}/nc/` | Noise resilience | 5 relevant + 95 random | ~2,490 |
-| Base | `{base}/base/` | Clean retrieval | 100 relevant | ~2,490 |
-| CC | `{base}/cc/` | Factual consistency | 90 candidates + 10 counterfactual | ~2,490 |
-| SSLI | `{base}/ssli/` | Logical discrimination | 90 candidates + 10 semantically similar but irrelevant | ~2,490 |
-| Multi-Hop | `{base}/multihop/` | Cross-document reasoning | 2 semantically linked abstracts | ~1,200–1,600 |
-
-Each subject has its own subdirectory (`biology/`, `chemistry/`, `geology/`, `math/`, `physics/`) under each task type.
-
-### File Naming
-
-Files follow the pattern `rebuild_{relevant-random}_{pool-size}_{Reranker}.jsonl`:
-- `rebuild_5-95_100-10_{Reranker}.jsonl` — NC task
-- `rebuild_100-0_100-10_{Reranker}.jsonl` — Base task
-- `rebuild_100-10_{Reranker}.jsonl` — CC, SSLI, Multi-Hop tasks
+> **Format & Statistics:** See [docs/DATA.md](docs/DATA.md) for the full file format, field descriptions, and per-subject statistics.
 
 ## Rerankers Evaluated
 
