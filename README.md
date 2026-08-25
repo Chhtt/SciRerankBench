@@ -1,10 +1,27 @@
-# SciRerankBench
+# SciRerankBench: Benchmarking Rerankers Towards Scientific Retrieval-Augmented Generated LLMs
 
-> **SciRerankBench: Benchmarking Rerankers Towards Scientific Retrieval-Augmented Generated LLMs**
->
-> Accepted at EMNLP 2026. The first benchmark specifically designed to evaluate rerankers in RAG-LLM systems across 5 scientific subjects.
 
-A benchmark for evaluating rerankers within Retrieval-Augmented Generation (RAG) systems in the scientific domain.
+SciRerankBench evaluates how well rerankers select relevant scientific passages for
+Retrieval-Augmented Generation (RAG) systems. It addresses a critical gap: in scientific
+question answering, subtle differences in terminology can drastically alter the factual
+correctness of LLM-generated answers, making the reranker's ability to distinguish relevant
+from irrelevant or misleading passages essential.
+
+The benchmark comprises **~58,000 Q-A-C (Question-Answer-Context) triples** derived from
+over **250 million scholarly works** across **5 scientific subjects** (Biology, Chemistry,
+Geology, Physics, Math) and **5 task types** that test distinct reranker capabilities:
+
+| Capability | Task | Setup |
+|---|---|---|
+| Clean retrieval | **Base** | 100 relevant passages |
+| Noise resilience | **NC** | 5 relevant + 95 random |
+| Factual consistency | **CC** | 90 candidates + 10 counterfactual |
+| Relevance disambiguation | **SSLI** | 90 candidates + 10 semantically similar but irrelevant |
+| Cross-document reasoning | **Multi-Hop** | 2 semantically linked abstracts |
+
+We systematically evaluate **13 rerankers** spanning dense cross-encoders, sparse lexical
+methods, late-interaction, LLM-based, seq2seq/listwise, knowledge distillation, and agent-based
+approaches, combined with **5 families of LLMs** for end-to-end answer generation.
 
 ## Project Structure
 
