@@ -7,8 +7,8 @@ For each QA pair, builds a pool of 100 candidate passages using dense retrieval
 Tasks:
   NC:     Qdrant top-5 + 95 random abstracts
   Base:   Qdrant top-100
-  CC:     Qdrant top-90 + 10 counterfactual distractors (LangChain structured output)
-  SSLI:   Qdrant top-90 + 10 semantically-similar irrelevant distractors (LangChain)
+  CC:     Qdrant top-90 + 10 counterfactual distractors (LLM entity rewrite of real passages)
+  SSLI:   Qdrant top-90 + 10 semantically-similar irrelevant distractors (LLM rewrite + BGE embedding verification)
   Multi-Hop: Qdrant top-100 for multi-hop questions
 
 Input:
@@ -109,73 +109,166 @@ def get_llm_client(args):
     return client
 
 
-def generate_counterfactual_distractors(question, golden_answer, retrieved_contexts, args, count=10):
-    """Generate counterfactual passages using LangChain structured output."""
+# ===================== CC: Counterfactual via Entity Rewrite =====================
+
+
+def rewrite_counterfactual_passage(source_passage, question, golden_answer, llm_client):
+    """Rewrite a real passage by replacing key factual entities to create a counterfactual.
+
+    The rewritten passage preserves the academic style and structure of the original,
+    but substitutes key entities (numbers, names, causal relations) with plausible
+    alternatives that contradict the golden answer.
+    """
     from pydantic import BaseModel, Field
 
     class CounterfactualPassage(BaseModel):
-        passage_text: str = Field(description="A plausible but factually incorrect passage about the topic")
-        modification: str = Field(description="What factual claim was changed from the original")
+        passage_text: str = Field(
+            description="The rewritten passage with key factual entities replaced"
+        )
+        entities_replaced: list[str] = Field(
+            description="List of entities that were replaced"
+        )
 
-    class CounterfactualResponse(BaseModel):
-        distractors: list[CounterfactualPassage] = Field(description=f"List of {count} counterfactual passages")
+    prompt = f"""You are rewriting a scientific passage to create a counterfactual version for a QA benchmark.
 
-    context_sample = "\n".join(retrieved_contexts[:3])
-    prompt = f"""You are generating counterfactual passages for a scientific QA benchmark.
+Given a real scientific passage, a question, and the correct answer, REWRITE the passage by:
+1. Identifying key factual entities in the passage (numbers, chemical names, causal relations, etc.)
+2. Replacing them with PLAUSIBLE ALTERNATIVES that contradict the golden answer
+3. Preserving the academic writing style, length, and structure of the original
+4. Making the passage sound scientifically realistic
 
-Given a question, its correct answer, and some real scientific context, generate {count} passages that:
-1. Are topically relevant and sound scientifically plausible
-2. Contain specific factual errors that CONTRADICT the golden answer
-3. Use academic writing style similar to real abstracts
+IMPORTANT: Do NOT generate a completely new passage. Only modify specific entities within the original text.
 
 QUESTION: {question}
 GOLDEN ANSWER: {golden_answer}
-REAL CONTEXT (for style reference):
-{context_sample}
+ORIGINAL PASSAGE:
+{source_passage}
 
-Generate {count} counterfactual passages. Each should be 2-4 sentences, formatted like a scientific abstract excerpt."""
+Rewrite the passage by replacing key entities. The result should read like a real scientific abstract excerpt."""
 
     from langchain_core.prompts import ChatPromptTemplate
-    structured_llm = args.llm_client.with_structured_output(CounterfactualResponse)
+    structured_llm = llm_client.with_structured_output(CounterfactualPassage)
     chain = ChatPromptTemplate.from_messages([("system", prompt)]) | structured_llm
     result = chain.invoke({})
 
-    return [d.passage_text for d in result.distractors]
+    return result.passage_text
 
 
-def generate_ssli_distractors(question, golden_answer, retrieved_contexts, args, count=10):
-    """Generate semantically similar but logically irrelevant passages."""
+def generate_counterfactual_distractors(question, golden_answer, retrieved_contexts, args, count=10):
+    """Generate counterfactual passages by rewriting real retrieved passages.
+
+    Takes the first {count} passages from the retrieved contexts and rewrites
+    each one by replacing key factual entities with plausible alternatives
+    that contradict the golden answer.
+    """
+    distractors = []
+    for i in range(min(count, len(retrieved_contexts))):
+        source = retrieved_contexts[i]
+        try:
+            rewritten = rewrite_counterfactual_passage(
+                source, question, golden_answer, args.llm_client
+            )
+            distractors.append(rewritten)
+        except Exception as e:
+            print(f"  [CC] Failed to rewrite passage {i}: {e}, skipping")
+    return distractors
+
+
+# ===================== SSLI: Semantic Rewrite + Embedding Verification =====================
+
+
+def rewrite_ssli_passage(source_passage, question, golden_answer, llm_client):
+    """Rewrite a real passage to be semantically similar but logically irrelevant.
+
+    The rewritten passage shares keywords and topics with the question but
+    does NOT actually answer the question — it discusses tangential aspects.
+    """
     from pydantic import BaseModel, Field
 
     class SSLIPassage(BaseModel):
-        passage_text: str = Field(description="A passage that is topically similar but does not answer the question")
-        irrelevance_reason: str = Field(description="Why this passage is logically irrelevant to the question")
+        passage_text: str = Field(
+            description="The rewritten passage that shares keywords but does not answer the question"
+        )
 
-    class SSLIResponse(BaseModel):
-        distractors: list[SSLIPassage] = Field(description=f"List of {count} semantically similar but irrelevant passages")
+    prompt = f"""You are rewriting a scientific passage to create a distractor for a QA benchmark.
 
-    context_sample = "\n".join(retrieved_contexts[:3])
-    prompt = f"""You are generating distractor passages for a scientific QA benchmark.
+Given a real scientific passage, a question, and its correct answer, REWRITE the passage so that:
+1. It shares KEYWORDS and TOPICS with the question (uses similar scientific terminology)
+2. It does NOT actually answer the question — it discusses a tangential or related aspect
+3. It preserves the academic writing style and length of the original passage
+4. It sounds like a real scientific abstract excerpt
 
-Given a question and its correct answer, generate {count} passages that:
-1. Share keywords and topics with the question (semantically similar)
-2. Do NOT actually answer the question (logically irrelevant)
-3. Discuss related but tangential aspects of the topic
-4. Use academic writing style similar to real abstracts
+IMPORTANT: Rewrite the original passage, do NOT generate a completely new one. Keep the core subject matter but shift the focus away from answering the question.
 
 QUESTION: {question}
 GOLDEN ANSWER: {golden_answer}
-REAL CONTEXT (for style reference):
-{context_sample}
+ORIGINAL PASSAGE:
+{source_passage}
 
-Generate {count} distractor passages. Each should be 2-4 sentences."""
+Rewrite the passage to be semantically similar but logically irrelevant."""
 
     from langchain_core.prompts import ChatPromptTemplate
-    structured_llm = args.llm_client.with_structured_output(SSLIResponse)
+    structured_llm = llm_client.with_structured_output(SSLIPassage)
     chain = ChatPromptTemplate.from_messages([("system", prompt)]) | structured_llm
     result = chain.invoke({})
 
-    return [d.passage_text for d in result.distractors]
+    return result.passage_text
+
+
+def check_ssli_embedding(question, rewritten_text, embedding_model, threshold=0.75):
+    """Verify that the rewritten passage has high cosine similarity to the question.
+
+    Uses the BGE embedding model to compute cosine similarity between the question
+    and the rewritten passage. Returns True if similarity ≥ threshold.
+    """
+    import numpy as np
+
+    embeddings = embedding_model.embed_documents([question, rewritten_text])
+    q_vec = np.array(embeddings[0])
+    r_vec = np.array(embeddings[1])
+
+    cosine_sim = float(np.dot(q_vec, r_vec) / (np.linalg.norm(q_vec) * np.linalg.norm(r_vec)))
+    return cosine_sim >= threshold, cosine_sim
+
+
+def generate_ssli_distractors(question, golden_answer, retrieved_contexts, args, count=10):
+    """Generate SSLI distractors by rewriting real passages and verifying embedding similarity.
+
+    For each source passage from the retrieved contexts:
+    1. LLM rewrites it to share keywords but not answer the question
+    2. BGE embedding model verifies cosine similarity ≥ 0.75
+    3. If verified, accept; otherwise retry with the next passage
+    """
+    distractors = []
+    max_attempts = count * 3  # Allow up to 3 attempts per desired distractor
+    attempt = 0
+
+    for source in retrieved_contexts:
+        if len(distractors) >= count:
+            break
+        if attempt >= max_attempts:
+            break
+
+        try:
+            rewritten = rewrite_ssli_passage(
+                source, question, golden_answer, args.llm_client
+            )
+            passed, sim = check_ssli_embedding(
+                question, rewritten, args.embedding_model
+            )
+            if passed:
+                distractors.append(rewritten)
+            else:
+                pass  # Will retry with next source passage
+        except Exception as e:
+            print(f"  [SSLI] Failed attempt {attempt + 1}: {e}")
+
+        attempt += 1
+
+    if len(distractors) < count:
+        print(f"  [SSLI] Warning: only generated {len(distractors)}/{count} distractors for this question")
+
+    return distractors
 
 
 # ===================== Pool Building =====================
@@ -314,10 +407,13 @@ def main():
 
     # Initialize vector store
     print(f"Connecting to Qdrant collection: {collection_name}")
-    vector_store, _ = get_vector_store(
+    vector_store, embeddings = get_vector_store(
         args.qdrant_url, args.qdrant_api_key, collection_name,
         "BAAI/bge-m3", device
     )
+
+    # Store embedding model reference for SSLI verification
+    args.embedding_model = embeddings
 
     # Fetch all abstracts for random sampling
     print("Fetching all abstracts for random sampling...")
